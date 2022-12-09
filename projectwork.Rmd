@@ -1,0 +1,107 @@
+---
+title: "Practical Machine Learning Project"
+author: "MF"
+date: "12/6/2022"
+output: html_document
+---
+
+
+## Introduction
+
+This project is based on accelerometer data from a number of participants. The objective is to predict the manor they did the exercise defined by the "classe" variable in the training set. There are some problems assessing the web page with the general information, but the datafiles can be downloaded. 
+
+The analysis is divided into:
+*Data loading 
+*Data cleaning 
+*Parameter identification using a decision treee
+*Model training
+*Model forecast
+
+## Loading Modules to be used 
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(rpart)
+library(randomForest)
+library(rattle) # Plotting decision tree
+```
+
+## Data Loading and cleaning
+
+Import the csv files for training and testing provided. Then remove columns where non-assigned values represent 80 percent or more of the information. Columns 1 to 7 are irrelevant and have been removed as they refer to user names and system setup. 
+
+The project contains two files, a training set and a forecast set. The training set is divided into a training and testing test to generate and qualify the accuracy of the model fit. 
+
+Columns contraining 80 percent of more non assigned values were removed from the training and test data. 
+
+```{r data}
+training <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+training <- training[,colMeans(is.na(training)) < 0.80] 
+training <- training[,-c(1:7)]
+
+testing <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+
+inTrain <- createDataPartition(y = training$classe, p = 0.7, list = FALSE)
+train.train <- training[inTrain,]
+train.test  <- training[-inTrain,]
+
+```
+
+## Parameter identification using a decision tree
+
+The decision tree shows that the classification can be done based on 6 parameters as shown in the illustration below. The remaining parameters are not used.    
+
+```{r trees}
+control <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modFit <- train(classe ~ ., method="rpart", data=train.train, trControl = control, tuneLength = 5)
+print(modFit$finalModel)
+fancyRpartPlot(modFit$finalModel)
+```
+
+## Test Forecast 
+
+The test proportion of the training data is processed through the predict option based on the Tree and the accuracy estimated using the confusionMatrix. The accuracy of the prediction of classe C and D is the lowest, with the highest accuracy in predicting class E. The overall accuracy is 0.53 which is low. A second model build is run using random forest. This has an overall accuracy of 99.5 percent and therefore superior to the Tree algorithm. 
+
+```{r testtree}
+modPred <- predict(modFit, train.test)
+confusionMatrix(factor(train.test$classe), modPred)
+```
+
+Setting up a Random Forest model 
+
+```{r testrf}
+rfFit <-randomForest(as.factor(classe) ~ ., data= train.train, importance = TRUE, ntrees = 10 )
+
+rftrain <- predict(rfFit, train.train)
+rftest  <- predict(rfFit, train.test)
+confusionMatrix(factor(train.test$classe), rftest)
+```
+
+
+
+## Running the Forecast
+
+Finally the forecast is run for the file provided after applying a filter to remove any columns not used in the model creation. The forecast is run using the random forest approach. 
+
+```{r forecast}
+
+nm.train <- colnames(train.train)
+nm.forec <- colnames(testing)
+filter <- c()
+for (nm in nm.forec) {
+  if (nm %in% nm.train) {
+    filter <- c(filter, TRUE)
+  } else {
+    filter <- c(filter, FALSE)
+  } 
+}
+
+predict(rfFit, testing[,filter])
+
+
+```
+
+## Conclusion 
+
+The random forest approach was proved to be fairly accurate in the grouping of the data. 
